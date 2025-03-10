@@ -1,152 +1,79 @@
-// Import necessary modules from the MCP SDK
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-// Import zod for schema validation and type safety
 import { z } from "zod";
 
-// Define constants for your API integrations
-const API_BASE_URL = "https://api.example.com"; // Replace with your API base URL
-const USER_AGENT = "mcp-server/1.0"; // User-Agent header value for API requests
-
-// Create an MCP server instance with a name and version
-// This is the main entry point for our MCP implementation
+// Create an MCP server
 const server = new McpServer({
-  name: "my-mcp-server", // Server identifier in the MCP ecosystem - replace with your server name
-  version: "1.0.0" // Semantic versioning for our server
+  name: "LectureNotesGenerator",
+  version: "1.0.0"
 });
 
-/**
- * Helper function to make API requests
- *
- * @param url - The full URL endpoint to request data from
- * @returns A Promise that resolves to the parsed JSON response, or null if the request fails
- * @template T - Type parameter for the expected response data structure
- */
-async function makeApiRequest<T>(url: string, options = {}): Promise<T | null> {
-  // Create default headers for the API request
-  const defaultHeaders = {
-    "User-Agent": USER_AGENT,
-    "Content-Type": "application/json"
-  };
-
-  const requestOptions = {
-    headers: { ...defaultHeaders, ...(options as any).headers },
-    ...(options || {})
-  };
-
-  try {
-    // Make the HTTP request with fetch API
-    const response = await fetch(url, requestOptions);
-
-    // Check if the response was successful (status code 200-299)
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    // Parse the JSON response and cast it to the expected type
-    return (await response.json()) as T;
-  } catch (error) {
-    // Log any errors that occur during the request
-    console.error("Error making API request:", error);
-    return null; // Return null to indicate a failed request
-  }
-}
-
-/**
- * Interface for generic API responses
- * Replace or extend this with your specific API response structures
- */
-interface ApiResponse {
-  // Define the structure of your API responses here
-  success: boolean;
-  data?: any;
-  message?: string;
-}
-
-/**
- * Utility function to format API data into a human-readable string
- * Customize this function based on your specific data format
- */
-function formatResponse(data: any): string {
-  // Implement custom formatting logic here
-  if (typeof data === 'object') {
-    return JSON.stringify(data, null, 2);
-  }
-  return String(data);
-}
-
-// -----------------------------------------------------------------------------
-// REGISTER YOUR MCP TOOLS BELOW
-// -----------------------------------------------------------------------------
-
-// EXAMPLE TOOL TEMPLATE:
-// server.tool(
-//   "tool_name", // Tool name - used by clients to call this tool
-//   "Tool description", // Tool description - helps clients understand the purpose
-//   {
-//     // Define the input schema using zod for validation
-//     param1: z.string().describe("Description of param1"),
-//     param2: z.number().describe("Description of param2")
-//   },
-//   // Tool implementation function - what happens when this tool is called
-//   async ({ param1, param2 }) => {
-//     // Implement your tool logic here
-//     // ...
-//
-//     // Return the result in the format expected by the MCP protocol
-//     return {
-//       content: [
-//         {
-//           type: "text", // Content type (text, image, etc.)
-//           text: "Your response text here" // The actual response text
-//         }
-//       ]
-//     };
-//   }
-// );
-
-// Example tool implementation
-server.tool(
-  "example_tool", 
-  "Example tool that demonstrates the basic structure", 
+// Define the prompt for generating lecture notes
+server.prompt(
+  "generate-lecture-notes",
   {
-    input: z.string().describe("Input data to process")
+    courseName: z.string().describe("The name of the course"),
+    lectureNumber: z.string().describe("The lecture number"),
+    lectureTopic: z.string().describe("The topic of the lecture"),
+    transcriptFilePath: z.string().describe("The file path to the lecture transcript"),
+    outputDirectory: z.string().describe("The directory where notes should be saved"),
+    outputFilename: z.string().describe("The filename for the output notes"),
+    specialFormatting: z.string().optional().describe("Any special formatting requirements"),
+    contentToEmphasize: z.string().optional().describe("Any specific content that should be emphasized"),
+    otherInstructions: z.string().optional().describe("Any other instructions for note generation")
   },
-  async ({ input }) => {
-    // Process the input
-    const processedInput = `Processed: ${input}`;
-    
-    // Return the result
+  ({
+    courseName,
+    lectureNumber,
+    lectureTopic,
+    transcriptFilePath,
+    outputDirectory,
+    outputFilename,
+    specialFormatting,
+    contentToEmphasize,
+    otherInstructions
+  }) => {
     return {
-      content: [
+      messages: [
         {
-          type: "text",
-          text: processedInput
+          role: "user",
+          content: {
+            type: "text",
+            text: `Claude, please create detailed Markdown notes for my course on ${courseName}. 
+Source information:
+- Lecture: ${lectureNumber}
+- Topic: ${lectureTopic}
+- Transcript file: ${transcriptFilePath}
+- Output location: ${outputDirectory}/${outputFilename}.md
+Additional requests:
+- ${specialFormatting || ""}
+- ${contentToEmphasize || ""}
+- ${otherInstructions || ""}
+Please follow these guidelines when creating the notes:
+- First, read the lecture transcript from the file at ${transcriptFilePath}
+- Organize content with clear headings and subheadings
+- Use proper Markdown formatting (including mathematical notation where needed)
+- Include all key concepts, definitions, and examples
+- Structure the notes in a logical flow that follows the lecture
+- Highlight important formulas, algorithms, or theoretical frameworks
+- Save the completed notes to ${outputDirectory}/${outputFilename}.md`
+          }
         }
       ]
     };
   }
 );
 
-/**
- * Main function to initialize and connect the MCP server
- */
+// Start server
 async function main() {
-  // Create a stdio transport for communication
-  // This allows the server to communicate with clients via standard input/output
-  const transport = new StdioServerTransport();
-
-  // Connect the server to the transport
-  // This starts listening for incoming messages and enables communication
-  await server.connect(transport);
-
-  // Log a message to indicate the server is running
-  // Note: Using console.error instead of console.log because stdout is used for MCP communication
-  console.error("MCP Server running on stdio");
+  try {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error("Lecture Notes Generator MCP Server running");
+  } catch (error) {
+    console.error("Error starting server:", error);
+    process.exit(1);
+  }
 }
 
-// Call the main function and handle any fatal errors
-main().catch((error) => {
-  console.error("Fatal error in main():", error);
-  process.exit(1); // Exit with error code 1 if there's a fatal error
-});
+main();
