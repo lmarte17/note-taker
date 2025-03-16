@@ -39,7 +39,7 @@ server.prompt(
           role: "user",
           content: {
             type: "text",
-            text: `Claude, please create detailed Markdown notes for my course on ${courseName}. 
+            text: `Please create detailed Markdown notes for my course on ${courseName}. 
 Source information:
 - Lecture: ${lectureNumber}
 - Topic: ${lectureTopic}
@@ -50,6 +50,7 @@ Additional requests:
 - ${contentToEmphasize || ""}
 - ${otherInstructions || ""}
 Please follow these guidelines when creating the notes:
+- Remember, You have access to these files: ${transcriptFilePath}
 - First, read the lecture transcript from the file at ${transcriptFilePath}
 - Organize content with clear headings and subheadings
 - Use proper Markdown formatting (including mathematical notation where needed)
